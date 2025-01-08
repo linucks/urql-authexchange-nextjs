@@ -1,11 +1,13 @@
-import Link from 'next/link';
-import { cacheExchange, createClient, fetchExchange, gql } from '@urql/core';
-import { registerUrql } from '@urql/next/rsc';
+import Link from "next/link";
+import { cacheExchange, createClient, fetchExchange, gql } from "@urql/core";
+import { registerUrql } from "@urql/next/rsc";
+
+import authExc from "../app/auth-exchange";
 
 const makeClient = () => {
   return createClient({
-    url: 'https://graphql-pokeapi.graphcdn.app/',
-    exchanges: [cacheExchange, fetchExchange],
+    url: "https://graphql-pokeapi.graphcdn.app/",
+    exchanges: [cacheExchange, authExc, fetchExchange],
   });
 };
 

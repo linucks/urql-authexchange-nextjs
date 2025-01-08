@@ -27,5 +27,4 @@ export const getRefreshToken = async () => {
 export const clearStorage = async () => {
   (await cookies()).delete(TOKEN_KEY);
   (await cookies()).delete(REFRESH_TOKEN_KEY);
-  localStorage.clear();
 };

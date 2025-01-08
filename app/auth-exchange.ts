@@ -1,12 +1,9 @@
+"use server";
 import { gql } from "urql";
 import { authExchange } from "@urql/exchange-auth";
 
-import {
-  getRefreshToken,
-  getToken,
-  saveAuthData,
-  clearStorage,
-} from "./authstore";
+import { getRefreshToken, getToken, saveAuthData } from "./authstore";
+import { redirect } from "next/navigation";
 
 const REFRESH_TOKEN_MUTATION = gql`
   mutation RefreshCredentials($refreshToken: String!) {
@@ -17,12 +14,13 @@ const REFRESH_TOKEN_MUTATION = gql`
   }
 `;
 
-const auth = authExchange(async (utilities) => {
+const authExc = authExchange(async (utilities) => {
   let token = getToken();
   let refreshToken = getRefreshToken();
 
   return {
     addAuthToOperation(operation) {
+      console.log("addAuthToOperation");
       return token
         ? utilities.appendHeaders(operation, {
             Authorization: `Bearer ${token}`,
@@ -30,11 +28,15 @@ const auth = authExchange(async (utilities) => {
         : operation;
     },
     didAuthError(error) {
+      console.log("didAuthError");
       return error.graphQLErrors.some(
         (e) => e.extensions?.code === "UNAUTHORIZED"
       );
     },
     willAuthError(operation) {
+      console.log("willAuthError");
+      // Hack to force failed refresh
+      return true;
       // Sync tokens on every operation
       token = getToken();
       refreshToken = getRefreshToken();
@@ -58,6 +60,7 @@ const auth = authExchange(async (utilities) => {
       return false;
     },
     async refreshAuth() {
+      console.log("refreshAuth");
       if (refreshToken) {
         const result = await utilities.mutate(REFRESH_TOKEN_MUTATION, {
           refreshToken,
@@ -70,12 +73,13 @@ const auth = authExchange(async (utilities) => {
           return;
         }
       }
-
+      console.log("Failed to refresh token - logging out");
       // This is where auth has gone wrong and we need to clean up and redirect to a login page
-      clearStorage();
-      window.location.reload();
+      // clearStorage();
+      // window.location.reload();
+      redirect("/logout");
     },
   };
 });
 
-export default auth;
+export default authExc;
