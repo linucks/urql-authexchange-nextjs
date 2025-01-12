@@ -4,6 +4,7 @@ import { authExchange } from "@urql/exchange-auth";
 
 import { getRefreshToken, getToken, saveAuthData } from "./authstore";
 import { redirect } from "next/navigation";
+import { authValid, refreshValid } from "./token-util";
 
 const REFRESH_TOKEN_MUTATION = gql`
   mutation RefreshCredentials($refreshToken: String!) {
@@ -15,13 +16,13 @@ const REFRESH_TOKEN_MUTATION = gql`
 `;
 
 const authExc = authExchange(async (utilities) => {
-  let token = getToken();
-  let refreshToken = getRefreshToken();
+  let token = await getToken();
+  let refreshToken = await getRefreshToken();
 
   return {
     addAuthToOperation(operation) {
-      console.log("addAuthToOperation");
-      return token
+      console.log("addAuthToOperation ", authValid(token));
+      return authValid(token)
         ? utilities.appendHeaders(operation, {
             Authorization: `Bearer ${token}`,
           })
@@ -35,12 +36,12 @@ const authExc = authExchange(async (utilities) => {
     },
     willAuthError(operation) {
       console.log("willAuthError");
-      // Hack to force failed refresh
-      return true;
-      // Sync tokens on every operation
-      token = getToken();
-      refreshToken = getRefreshToken();
+      // Sync tokens on every operation.
+      // ISSUE: How to do this as not async function?
+      // token = await getAuthToken(isAdmin);
+      // refreshToken = await getRefreshToken(isAdmin);
 
+      return true; // force auth error to trigger refreshAuth
       if (!token) {
         // Detect our login mutation and let this operation through:
         return (
@@ -60,23 +61,23 @@ const authExc = authExchange(async (utilities) => {
       return false;
     },
     async refreshAuth() {
-      console.log("refreshAuth");
-      if (refreshToken) {
+      if (refreshValid(refreshToken)) {
+        console.log("refreshAuth refreshing token");
         const result = await utilities.mutate(REFRESH_TOKEN_MUTATION, {
           refreshToken,
         });
-
         if (result.data?.refreshCredentials) {
           token = result.data.refreshCredentials.token;
           refreshToken = result.data.refreshCredentials.refreshToken;
-          saveAuthData({ token, refreshToken });
+          // This fails with:
+          // Error: Cookies can only be modified in a Server Action or Route Handler.
+          await saveAuthData({ token, refreshToken });
           return;
         }
       }
       console.log("Failed to refresh token - logging out");
-      // This is where auth has gone wrong and we need to clean up and redirect to a login page
-      // clearStorage();
-      // window.location.reload();
+      // Refresh has gone wrong so we need to cleanup and logout by redirecting to the logout page
+      // This fails with: NEXT_REDIRECT;replace;/logout;307;
       redirect("/logout");
     },
   };
